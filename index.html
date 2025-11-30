@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VidSrc Test Player</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #111; color: #eee; text-align: center; padding: 20px; }
+        .container { max-width: 800px; margin: auto; background: #222; padding: 20px; border-radius: 10px; }
+        #player-wrapper { 
+            position: relative; 
+            padding-bottom: 56.25%; /* 16:9 Aspect Ratio */
+            height: 0; 
+            overflow: hidden; 
+            margin-top: 20px;
+            border: 4px solid #f90;
+            border-radius: 8px;
+        }
+        #movie-iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        #vidsrc-status {
+            background: #333;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>🎬 VidSrc Playback Test</h2>
+        <p>टेस्टिंग के लिए IMDb ID पहले से ही भरी हुई है: **Inception (2010)**</p>
+        
+        <input type="text" id="imdb-input" value="tt1375666" style="padding: 8px; border-radius: 4px; border: 1px solid #ccc; width: 200px; color: #333;">
+        <button onclick="loadTest()">Load VidSrc</button>
+        <button onclick="clearIframe()">Clear</button>
+
+        <div id="vidsrc-status">Enter an IMDb ID and click Load.</div>
+
+        <div id="player-wrapper">
+            <iframe id="movie-iframe" src="about:blank" allowfullscreen></iframe>
+        </div>
+    </div>
+
+    <script>
+        // डमी OMDB API Key (केवल type चेक के लिए, आप अपनी key उपयोग करें)
+        const OMDB_API_KEY = "a4ff55fe"; 
+        const OMDB_BASE_URL = "https://www.omdbapi.com/";
+
+        // VidSrc मिरर्स की सूची (Failover के लिए)
+        const vidsrcMirrors = [
+            'https://vidsrc.to',
+            'https://vidsrc-embed.su',
+            'https://vidsrc.me',
+            'https://vidsrc.icu',
+            'https://embed.su', 
+        ];
+
+        // OMDb से कंटेंट का टाइप (movie/tv) पता लगाने के लिए
+        async function getVidSrcContentType(imdbId) {
+            try {
+                const r = await fetch(`${OMDB_BASE_URL}?i=${imdbId}&plot=full&apikey=${OMDB_API_KEY}`);
+                const d = await r.json();
+                const type = (d.Type && d.Type.toLowerCase() === 'series') ? 'tv' : 'movie';
+                return type; 
+            } catch (e) { 
+                document.getElementById('vidsrc-status').innerHTML = '<span style="color:red;">Error checking content type. Defaulting to Movie.</span>';
+                return 'movie'; 
+            }
+        }
+
+        async function loadTest() {
+            const imdbId = document.getElementById('imdb-input').value.trim();
+            if (!imdbId) {
+                document.getElementById('vidsrc-status').innerHTML = '<span style="color:yellow;">Please enter a valid IMDb ID.</span>';
+                return;
+            }
+
+            const iframe = document.getElementById('movie-iframe');
+            const statusDiv = document.getElementById('vidsrc-status');
+            
+            statusDiv.innerHTML = "Finding Content Type...";
+            iframe.src = "about:blank"; 
+
+            const type = await getVidSrcContentType(imdbId);
+            
+            let success = false;
+            
+            // Failover Logic
+            for (let base of vidsrcMirrors) {
+                try {
+                    const url = `${base}/embed/${type}/${imdbId}`;
+                    
+                    statusDiv.innerHTML = `Trying <b style="color:#0f0">${new URL(base).host}</b> (Type: ${type})...`;
+                    
+                    iframe.src = url;
+                    
+                    // 1.5 सेकंड का वेट करें
+                    await new Promise(resolve => setTimeout(resolve, 1500));
+                    
+                    if (iframe.src.startsWith(base)) {
+                        statusDiv.innerHTML = `Loaded successfully via <b style="color:lime">${new URL(base).host}</b>. Click inside to play.`;
+                        success = true;
+                        break; 
+                    }
+                } catch (e) {
+                    console.error(`Mirror ${base} failed:`, e);
+                }
+            }
+
+            // Error Handling
+            if (!success) {
+                statusDiv.innerHTML = `<span style="color:red;font-weight:bold;">Error: Content Not Found or All Servers Failed.</span> <br> <small>IMDb ID ${imdbId} is likely unavailable on VidSrc.</small>`;
+                iframe.src = "about:blank";
+            }
+        }
+
+        function clearIframe() {
+             document.getElementById('movie-iframe').src = "about:blank";
+             document.getElementById('vidsrc-status').innerHTML = 'Cleared. Ready to test again.';
+        }
+
+        // DOMContentLoaded पर स्टेटस को अपडेट करें
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('vidsrc-status').innerHTML = 'Ready to test. Click Load VidSrc.';
+        });
+
+    </script>
+</body>
+</html>
